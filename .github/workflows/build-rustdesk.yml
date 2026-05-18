@@ -9,7 +9,6 @@ on:
 
 env:
   RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
-  API_SERVER: ""
   RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
   APP_NAME: "Assistance"
 

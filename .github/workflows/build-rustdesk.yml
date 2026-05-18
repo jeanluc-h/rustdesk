@@ -1,0 +1,136 @@
+name: Custom RustDesk Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+  workflow_dispatch:
+
+env:
+  RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
+  API_SERVER: ""
+  RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
+  APP_NAME: "Assistance"
+
+jobs:
+
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+
+      - name: Inject configuration
+        shell: pwsh
+        run: |
+          echo "Server: $env:RENDEZVOUS_SERVER"
+
+      - name: Build Windows
+        run: cargo build --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: target/release/*
+
+
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+          clang \
+          cmake \
+          pkg-config \
+          libgtk-3-dev \
+          liblzma-dev \
+          libxdo-dev
+
+      - name: Build Linux
+        run: cargo build --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: target/release/*
+
+
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build Android APK
+        run: |
+          cd flutter
+          flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: flutter/build/app/outputs/flutter-apk/*.apk
+
+
+  release:
+    needs:
+      - windows
+      - linux
+      - android
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/download-artifact@v4
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            windows-build/**
+            linux-build/**
+            android-apk/**
